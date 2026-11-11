@@ -101,6 +101,8 @@ TypeScript (Express, Node.js, Socket.IO).
 
 ## Tests
 
-```bash
-pytest
 ```
+./scripts/verifier.sh
+```
+
+Le script lance les tests, puis applique AutoCRA à son propre code. Il est à lancer avant chaque envoi : les tests ne tournent pas encore automatiquement sur GitHub.
