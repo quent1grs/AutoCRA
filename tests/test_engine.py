@@ -130,3 +130,10 @@ def test_configuration_livree_et_scripts_de_demarrage(tmp_path):
     assert found["compose-hardening"].location.line == 9
     assert found["startup-privilege-drop"].location.line == 2
     assert sum(f.rule_id == "compose-default-secret" for f in repo_files.run(tmp_path)) == 1
+
+
+def test_vue_sans_declaration_de_droits(analysis):
+    evidence = next(e for e in analysis.evidences if e.reference == "CRA-I-1-2d")
+    found = [f for f in evidence.findings if f.rule_id == "py-drf-view-without-permissions"]
+    # Seule RemoteVersionView hérite d'une vue d'interface sans déclarer ses droits.
+    assert len(found) == 1
