@@ -95,6 +95,12 @@ def run(target: Path, commit: str | None = None) -> list[Finding]:
                 if line:
                     add(rule, message, path, line, reqs)
                     seen.add(rule)
+        elif (len(parts) >= 3 and parts[-3:-1] == ["management", "commands"] and name.endswith(".py")
+              and re.search(r"export|delete|purge|prune|trash|erase|anonymi", name)):
+            kind = "d'export" if "export" in name else "de suppression"
+            add("data-management-command", f"Commande d'administration {kind} des données", path,
+                _first_line(_read(path), r"^class Command\b") or 1,
+                ["CRA-I-1-2m"], Polarity.NEUTRE, "data")
         elif name == "dockerfile" or name.startswith("dockerfile."):
             text = _read(path)
             users = [(n, l) for n, l in enumerate(text.splitlines(), 1) if re.match(r"\s*USER\s+\S+", l, re.I)]
@@ -102,9 +108,19 @@ def run(target: Path, commit: str | None = None) -> list[Finding]:
                 add("container-non-root", "Le conteneur s'exécute avec un utilisateur non privilégié", path,
                     users[-1][0], ["CRA-I-1-2k"], category="hardening")
             else:
-                add("container-root", "Aucun utilisateur non privilégié défini dans le Dockerfile "
-                    "(à vérifier : un script de démarrage peut abaisser les droits)", path,
-                    users[-1][0] if users else 1, ["CRA-I-1-2k"], Polarity.CONTRE, "hardening")
+                # On retient le dernier emploi : il est le plus proche du lancement du service.
+                drops = [n for n, l in enumerate(text.splitlines(), 1)
+                         if re.search(r"\b(s6-setuidgid|setuidgid|gosu|su-exec|setpriv|runuser)\s+\S", l)
+                         and not l.lstrip().startswith("#")]
+                drop = drops[-1] if drops else None
+                if drop:
+                    add("container-privilege-drop", "Pas d'instruction USER, mais une commande d'abandon de "
+                        "privilèges est utilisée (à juger : couvre-t-elle le service principal ?)", path,
+                        drop, ["CRA-I-1-2k"], Polarity.NEUTRE, "hardening")
+                else:
+                    add("container-root", "Aucun utilisateur non privilégié défini dans le Dockerfile "
+                        "(à vérifier : un script de démarrage peut abaisser les droits)", path,
+                        users[-1][0] if users else 1, ["CRA-I-1-2k"], Polarity.CONTRE, "hardening")
             line = _first_line(text, r"^\s*HEALTHCHECK\b")
             if line:
                 add("container-healthcheck", "Contrôle d'état du conteneur défini", path, line, ["CRA-I-1-2h"],

@@ -20,6 +20,7 @@ DEFAULT_EXCLUDES = (
     "node_modules", ".git", ".venv", "venv", "dist", "build", "__pycache__",
     "tests", "test", "docs", "migrations", "fixtures", ".devcontainer",
     "*.spec.ts", "*.spec.js", "*.test.ts", "*.test.js", "*.test.tsx", "test_*.py", "conftest.py",
+    "e2e", "playwright.config.*", "jest.config.*", "setup-jest.*",
 )
 
 

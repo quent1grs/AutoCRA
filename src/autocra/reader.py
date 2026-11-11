@@ -24,6 +24,8 @@ from .model import Evidence, Finding, Status
 from .requirements import Requirement
 
 CONTEXT_LINES = 12          # lignes montrées avant et après chaque élément
+PROCESS_CONTEXT_LINES = 60  # lignes montrées après une preuve de processus (fichier entier visé)
+LOW_PRIORITY_RULES = {"py-env-variable", "js-env-variable", "py-cli-argument"}
 MAX_EXCERPTS = 40           # extraits par exigence
 MAX_EXCERPT_CHARS = 120_000  # taille totale des extraits par exigence
 
@@ -128,8 +130,11 @@ def build_excerpts(root: Path, findings: list[Finding]) -> tuple[list[Excerpt], 
     nombre d'éléments laissés de côté faute de place."""
     located = [f for f in findings if f.location.line and (root / f.location.file).is_file()]
     # Les éléments défavorables et favorables passent avant l'inventaire neutre.
+    # Dans l'inventaire, les réglages et arguments de commande passent en dernier :
+    # ils sont nombreux et ne doivent pas chasser les routes exposées au réseau.
     order = {"contre": 0, "pour": 1, "neutre": 2}
-    located.sort(key=lambda f: (order[f.polarity.value], f.location.file, f.location.line))
+    located.sort(key=lambda f: (order[f.polarity.value], f.rule_id in LOW_PRIORITY_RULES,
+                                f.location.file, f.location.line))
 
     windows: dict[str, list[list]] = {}
     shown = 0
@@ -141,7 +146,9 @@ def build_excerpts(root: Path, findings: list[Finding]) -> tuple[list[Excerpt], 
             (root / f.location.file).read_text(encoding="utf-8", errors="replace").splitlines(),
         )
         start = max(1, f.location.line - CONTEXT_LINES)
-        end = min(len(lines), (f.location.end_line or f.location.line) + CONTEXT_LINES)
+        # Une preuve de processus désigne un fichier entier : on en montre davantage.
+        after = PROCESS_CONTEXT_LINES if f.category == "process" or f.rule_id == "data-management-command" else CONTEXT_LINES
+        end = min(len(lines), (f.location.end_line or f.location.line) + after)
         file_windows = windows.setdefault(f.location.file, [])
         merged = next((w for w in file_windows if start <= w[1] + 1 and end >= w[0] - 1), None)
         if merged:
@@ -167,7 +174,7 @@ def build_excerpts(root: Path, findings: list[Finding]) -> tuple[list[Excerpt], 
         for start, end, reasons, _ in sorted(file_windows):
             text = "\n".join(f"{n:>5}  {line}" for n, line in enumerate(cache[file][start - 1:end], start=start))
             excerpts.append(Excerpt(file, start, end, text, reasons))
-    return excerpts, len(findings) - shown
+    return excerpts, len(located) - shown
 
 
 def build_prompt(req: Requirement, evidence: Evidence, excerpts: list[Excerpt], omitted: int) -> str:

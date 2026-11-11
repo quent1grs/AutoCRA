@@ -78,3 +78,34 @@ def test_rapport(analysis, tmp_path):
     text = report.render_markdown(analysis)
     assert "ne déclare pas la conformité" in text
     assert "CRA-I-1-2b" in text and "CRA-II-8" in text
+
+
+def test_routeur_sans_faux_positifs(analysis):
+    evidence = next(e for e in analysis.evidences if e.reference == "CRA-I-1-2j")
+    routers = [f for f in evidence.findings if f.rule_id == "py-drf-router"]
+    # admin.site.register et register(...) de Celery ne sont pas des ressources d'API.
+    assert len(routers) == 1
+
+
+def test_hmac_releve_de_l_integrite_seulement(analysis):
+    assert "py-hmac-verification" in rules(analysis, "CRA-I-1-2f")
+    assert "py-hmac-verification" not in rules(analysis, "CRA-II-7")
+    assert "py-hmac-verification" not in rules(analysis, "CRA-I-1-2c")
+
+
+def test_dockerfile_abandon_de_privileges(tmp_path):
+    from autocra.collectors import repo_files
+    (tmp_path / "Dockerfile").write_text("FROM python:3.12\nRUN echo ok\nCMD s6-setuidgid app run\n")
+    found = {f.rule_id: f for f in repo_files.run(tmp_path)}
+    assert "container-root" not in found
+    assert found["container-privilege-drop"].location.line == 3
+    assert found["container-privilege-drop"].polarity is Polarity.NEUTRE
+
+
+def test_commande_d_export_des_donnees(tmp_path):
+    from autocra.collectors import repo_files
+    commands = tmp_path / "app" / "management" / "commands"
+    commands.mkdir(parents=True)
+    (commands / "document_exporter.py").write_text("class Command: ...\n")
+    found = [f for f in repo_files.run(tmp_path) if f.rule_id == "data-management-command"]
+    assert len(found) == 1 and found[0].requirements == ["CRA-I-1-2m"]

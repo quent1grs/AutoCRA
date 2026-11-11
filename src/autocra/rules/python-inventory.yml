@@ -20,7 +20,11 @@ rules:
     languages: [python]
     severity: INFO
     message: Ressource d'API enregistrée sur un routeur Django REST Framework
-    pattern: $ROUTER.register($PREFIX, $VIEWSET, ...)
+    patterns:
+      - pattern: $ROUTER.register($PREFIX, $VIEWSET, ...)
+      - metavariable-regex:
+          metavariable: $ROUTER
+          regex: (?i).*router.*
     metadata:
       autocra-category: entry_point
       autocra-requirements: [CRA-I-1-2d, CRA-I-1-2j]
@@ -372,9 +376,34 @@ rules:
     pattern-either:
       - pattern: $KEY.verify($SIG, $DATA, ...)
       - pattern: gnupg.GPG(...).verify(...)
-      - pattern: hmac.compare_digest(...)
       - pattern: nacl.signing.VerifyKey(...)
     metadata:
       autocra-category: update
       autocra-polarity: pour
       autocra-requirements: [CRA-I-1-2c, CRA-I-1-2f, CRA-II-7]
+
+  - id: py-release-check
+    languages: [python]
+    severity: INFO
+    message: Interrogation d'un dépôt de versions (vérification de version disponible)
+    patterns:
+      - pattern: $F(..., "$URL", ...)
+      - metavariable-regex:
+          metavariable: $URL
+          regex: .*(/releases/latest|/releases\b|pypi\.org/pypi/|registry\.npmjs\.org).*
+    metadata:
+      autocra-category: update
+      autocra-polarity: neutre
+      autocra-requirements: [CRA-I-1-2c, CRA-II-8]
+      autocra-note: Montre une notification de nouvelle version, pas une installation automatique.
+
+  - id: py-hmac-verification
+    languages: [python]
+    severity: INFO
+    message: Contrôle d'intégrité par code d'authentification (HMAC)
+    pattern: hmac.compare_digest(...)
+    metadata:
+      autocra-category: crypto
+      autocra-polarity: pour
+      autocra-requirements: [CRA-I-1-2f]
+      autocra-note: Protège l'intégrité d'une donnée interne ; ne prouve pas la signature des mises à jour.
