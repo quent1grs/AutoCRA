@@ -41,6 +41,7 @@ def main(argv: list[str] | None = None) -> int:
                               excludes=() if args.include_tests else None)
     report.write_json(analysis, args.out / "preuves.json")
     report.write_markdown(analysis, args.out / "rapport.md")
+    report.write_questionnaire(analysis, args.out / "questionnaire.md")
 
     print(f"Analyse terminée : {len(analysis.findings)} éléments pour {len(analysis.evidences)} exigences.")
     for category, count in sorted(analysis.counts().items()):

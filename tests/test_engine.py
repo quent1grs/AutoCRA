@@ -31,6 +31,19 @@ def test_points_d_entree(analysis):
     assert {"py-django-url", "py-drf-router", "py-flask-fastapi-route", "js-express-route", "js-server-listen"} <= found
 
 
+def test_messages_temps_reel(analysis):
+    evidence = next(e for e in analysis.evidences if e.reference == "CRA-I-1-2j")
+    handlers = [f for f in evidence.findings if f.rule_id == "js-socket-handler"]
+    # "connection" et "editItem" sont des points d'entrée ; "error" n'en est pas un.
+    assert len(handlers) == 2
+
+
+def test_questionnaire(analysis):
+    text = report.render_questionnaire(analysis)
+    assert "CRA-I-1-1" in text and "analyse de risques" in text
+    assert "CRA-I-1-2d" not in text  # aucune question pour cette exigence
+
+
 def test_reglages_par_defaut(analysis):
     contre = rules(analysis, "CRA-I-1-2b", Polarity.CONTRE)
     assert {"py-django-debug-true", "py-django-allowed-hosts-wildcard", "py-hardcoded-password"} <= contre
