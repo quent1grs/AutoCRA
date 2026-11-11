@@ -56,3 +56,8 @@ class DocumentViewSet:
 class SharedLinkView:
     authentication_classes = []
     permission_classes = []
+
+
+class RemoteVersionView(GenericAPIView[Any]):
+    def get(self, request):
+        return Response({})

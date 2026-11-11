@@ -208,6 +208,28 @@ rules:
       autocra-requirements: [CRA-I-1-2d, CRA-I-1-2j]
       autocra-note: Peut être voulu (page de connexion, lien de partage) ; à justifier.
 
+  - id: py-drf-view-without-permissions
+    languages: [python]
+    severity: INFO
+    message: Vue d'interface de programmation sans déclaration de droits
+    patterns:
+      - pattern: |
+          class $C(..., $BASE, ...):
+              ...
+      - metavariable-regex:
+          metavariable: $BASE
+          regex: ^(\w+\.)*(APIView|GenericAPIView|ViewSet|GenericViewSet|ModelViewSet|ReadOnlyModelViewSet|ObtainAuthToken)\b.*
+      - pattern-not: |
+          class $C(...):
+              ...
+              permission_classes = $P
+              ...
+    metadata:
+      autocra-category: access
+      autocra-polarity: neutre
+      autocra-requirements: [CRA-I-1-2d, CRA-I-1-2j]
+      autocra-note: Sans droits par défaut dans les réglages, une telle vue est ouverte à tous. À juger - les droits peuvent venir d'une classe parente.
+
   - id: py-drf-default-permissions
     languages: [python]
     severity: INFO
