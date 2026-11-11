@@ -67,6 +67,16 @@ qu'aucun code ne sorte de la machine.
 Par défaut, les dossiers de tests, de documentation et de migrations sont
 exclus. `--include-tests` les réintègre.
 
+### Enregistrer la décision d'une personne
+
+L'outil propose, une personne décide. Chaque décision est notée avec son auteur, sa date et la version du code :
+
+```
+autocra valider CRA-I-1-2d --etat partielle --par "Prénom Nom" --note "Réserve sur le lien de partage" --code chemin/du/depot -o sortie
+```
+
+Les décisions sont gardées dans `sortie/decisions.json`, sans jamais effacer les précédentes. Au prochain `autocra scan`, le rapport affiche la décision de chaque fiche et signale celles prises sur une version du code qui a changé depuis.
+
 ## Ce que fait la version 0.1
 
 | Collecteur | Ce qu'il trouve | Exigences |
@@ -91,6 +101,8 @@ TypeScript (Express, Node.js, Socket.IO).
 
 ## Tests
 
-```bash
-pytest
 ```
+./scripts/verifier.sh
+```
+
+Le script lance les tests, puis applique AutoCRA à son propre code. Il est à lancer avant chaque envoi : les tests ne tournent pas encore automatiquement sur GitHub.
