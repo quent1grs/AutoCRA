@@ -109,3 +109,24 @@ def test_commande_d_export_des_donnees(tmp_path):
     (commands / "document_exporter.py").write_text("class Command: ...\n")
     found = [f for f in repo_files.run(tmp_path) if f.rule_id == "data-management-command"]
     assert len(found) == 1 and found[0].requirements == ["CRA-I-1-2m"]
+
+
+def test_droits_d_acces_des_vues(analysis):
+    assert "py-drf-permission-classes" in rules(analysis, "CRA-I-1-2d", Polarity.NEUTRE)
+    assert "py-drf-open-view" in rules(analysis, "CRA-I-1-2d", Polarity.CONTRE)
+
+
+def test_configuration_livree_et_scripts_de_demarrage(tmp_path):
+    from autocra.collectors import repo_files
+    (tmp_path / "docker-compose.yml").write_text(
+        "services:\n  db:\n    environment:\n      POSTGRES_PASSWORD: paperless\n      API_TOKEN: ${API_TOKEN}\n"
+        "  web:\n    ports:\n      - \"8000:8000\"\n    read_only: true\n")
+    service = tmp_path / "docker" / "rootfs" / "s6-rc.d" / "svc-web"
+    service.mkdir(parents=True)
+    (service / "run").write_text("#!/bin/sh\nexec s6-setuidgid app granian app\n")
+    found = {f.rule_id: f for f in repo_files.run(tmp_path)}
+    assert found["compose-default-secret"].location.line == 4
+    assert found["compose-port"].location.line == 8
+    assert found["compose-hardening"].location.line == 9
+    assert found["startup-privilege-drop"].location.line == 2
+    assert sum(f.rule_id == "compose-default-secret" for f in repo_files.run(tmp_path)) == 1

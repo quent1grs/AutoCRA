@@ -14,6 +14,7 @@ MAX_LISTED = 15
 CATEGORY_LABELS = {
     "entry_point": "Points d'entrée",
     "outbound_call": "Appels sortants",
+    "access": "Droits d'accès",
     "setting": "Réglages",
     "secret": "Secrets en dur",
     "crypto": "Cryptographie",

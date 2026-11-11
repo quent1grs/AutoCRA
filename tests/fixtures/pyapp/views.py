@@ -47,3 +47,12 @@ def load_signed(payload, expected):
     if not hmac.compare_digest(payload[:32], expected):
         raise ValueError("payload modifié")
     return payload[32:]
+
+
+class DocumentViewSet:
+    permission_classes = (IsAuthenticated, PaperlessObjectPermissions)
+
+
+class SharedLinkView:
+    authentication_classes = []
+    permission_classes = []

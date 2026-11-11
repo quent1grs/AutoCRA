@@ -53,6 +53,7 @@ def run(target: Path, commit: str | None = None) -> list[Finding]:
         ))
 
     seen: set[str] = set()
+    startup_drops = 0
     for path in _walk(root):
         rel = path.relative_to(root)
         name = path.name.lower()
@@ -90,6 +91,11 @@ def run(target: Path, commit: str | None = None) -> list[Finding]:
                 ("ci-signing", r"cosign|sigstore|attest-build-provenance|gpg --(detach-)?sign|slsa",
                  "Signature ou attestation des livrables", ["CRA-II-7", "CRA-I-1-2f"]),
             ]
+            # La publication n'est ni pour ni contre : elle montre où lire la chaîne de distribution.
+            line = _first_line(text, r"docker/build-push-action|docker (buildx )?push|ghcr\.io|pypa/gh-action-pypi-publish|npm publish|softprops/action-gh-release")
+            if line:
+                add("ci-publish", "Publication des livrables par la chaîne de livraison", path, line,
+                    ["CRA-II-7", "CRA-II-8"], Polarity.NEUTRE)
             for rule, pattern, message, reqs in checks:
                 line = _first_line(text, pattern)
                 if line:
@@ -101,6 +107,37 @@ def run(target: Path, commit: str | None = None) -> list[Finding]:
             add("data-management-command", f"Commande d'administration {kind} des données", path,
                 _first_line(_read(path), r"^class Command\b") or 1,
                 ["CRA-I-1-2m"], Polarity.NEUTRE, "data")
+        elif re.fullmatch(r"(docker-)?compose[\w.-]*\.ya?ml", name):
+            lines = _read(path).splitlines()
+            in_ports = False
+            hardened = False
+            for number, line in enumerate(lines, 1):
+                stripped = line.strip()
+                if stripped.startswith("#"):
+                    continue
+                if re.match(r"ports\s*:", stripped):
+                    in_ports = True
+                    continue
+                if in_ports and stripped.startswith("-"):
+                    add("compose-port", f"Port publié par la configuration livrée : {stripped.lstrip('- ').strip(chr(34))}",
+                        path, number, ["CRA-I-1-2j"], Polarity.NEUTRE, "entry_point")
+                    continue
+                in_ports = False
+                secret = re.match(r"-?\s*([A-Z0-9_]*(PASSWORD|PASSWD|SECRET|TOKEN)[A-Z0-9_]*)\s*[:=]\s*(.+)", stripped)
+                if secret and not re.search(r"\$\{|^\s*$|_FILE\b", secret.group(1) + secret.group(3)):
+                    add("compose-default-secret", f"Valeur de {secret.group(1)} écrite dans la configuration livrée",
+                        path, number, ["CRA-I-1-2b"], Polarity.CONTRE, "setting")
+                if not hardened and re.match(r"(read_only\s*:\s*true|cap_drop\s*:|security_opt\s*:|user\s*:)", stripped):
+                    add("compose-hardening", "Option de durcissement du conteneur dans la configuration livrée",
+                        path, number, ["CRA-I-1-2k"], category="hardening")
+                    hardened = True
+        elif (name in {"run", "up"} or re.fullmatch(r"(docker-)?entrypoint[\w.-]*(\.sh)?", name)) and (
+                {"rootfs", "s6-rc.d", "services.d", "docker", "s6-overlay"} & set(parts) or name != "run"):
+            line = _first_line(_read(path), r"^[^#]*\b(s6-setuidgid|setuidgid|gosu|su-exec|setpriv|runuser)\s+\S")
+            if line and startup_drops < 12:
+                add("startup-privilege-drop", "Script de démarrage qui lance le service sous un autre compte", path, line,
+                    ["CRA-I-1-2k"], category="hardening")
+                startup_drops += 1
         elif name == "dockerfile" or name.startswith("dockerfile."):
             text = _read(path)
             users = [(n, l) for n, l in enumerate(text.splitlines(), 1) if re.match(r"\s*USER\s+\S+", l, re.I)]

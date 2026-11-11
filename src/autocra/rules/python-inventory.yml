@@ -169,6 +169,72 @@ rules:
       autocra-polarity: contre
       autocra-requirements: [CRA-I-1-2i]
 
+  # ---------------------------------------------------------------- droits d'accès
+  - id: py-drf-permission-classes
+    languages: [python]
+    severity: INFO
+    message: Droits d'accès déclarés sur une vue
+    patterns:
+      - pattern-either:
+          - pattern: permission_classes = $P
+          - pattern: |
+              @permission_classes($P)
+              def $F(...): ...
+      - pattern-not: permission_classes = []
+      - pattern-not: permission_classes = ()
+      - pattern-not: permission_classes = [..., AllowAny, ...]
+      - pattern-not: permission_classes = (..., AllowAny, ...)
+      - pattern-not: permission_classes = [..., $M.AllowAny, ...]
+    metadata:
+      autocra-category: access
+      autocra-polarity: neutre
+      autocra-requirements: [CRA-I-1-2d]
+      autocra-note: Montre quelle règle de droits s'applique ; reste à juger si elle convient.
+
+  - id: py-drf-open-view
+    languages: [python]
+    severity: WARNING
+    message: Vue accessible sans compte (aucun droit exigé)
+    pattern-either:
+      - pattern: permission_classes = []
+      - pattern: permission_classes = ()
+      - pattern: permission_classes = [..., AllowAny, ...]
+      - pattern: permission_classes = (..., AllowAny, ...)
+      - pattern: permission_classes = [..., $M.AllowAny, ...]
+      - pattern: authentication_classes = []
+    metadata:
+      autocra-category: access
+      autocra-polarity: contre
+      autocra-requirements: [CRA-I-1-2d, CRA-I-1-2j]
+      autocra-note: Peut être voulu (page de connexion, lien de partage) ; à justifier.
+
+  - id: py-drf-default-permissions
+    languages: [python]
+    severity: INFO
+    message: Droits d'accès par défaut de l'interface de programmation
+    pattern: |
+      {..., "DEFAULT_PERMISSION_CLASSES": $P, ...}
+    metadata:
+      autocra-category: access
+      autocra-polarity: pour
+      autocra-requirements: [CRA-I-1-2d, CRA-I-1-2b]
+
+  - id: py-login-required
+    languages: [python]
+    severity: INFO
+    message: Connexion exigée pour cette vue
+    pattern-either:
+      - pattern: login_required(...)
+      - pattern: |
+          @login_required
+          def $F(...): ...
+      - pattern: |
+          class $C(..., LoginRequiredMixin, ...): ...
+    metadata:
+      autocra-category: access
+      autocra-polarity: pour
+      autocra-requirements: [CRA-I-1-2d]
+
   # ---------------------------------------------------------------- réglages par défaut
   - id: py-django-debug-true
     languages: [python]
