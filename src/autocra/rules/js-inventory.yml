@@ -16,6 +16,22 @@ rules:
       autocra-category: entry_point
       autocra-requirements: [CRA-I-1-2d, CRA-I-1-2j]
 
+  - id: js-socket-handler
+    languages: [javascript, typescript]
+    severity: INFO
+    message: Gestionnaire de message temps réel (Socket.IO ou WebSocket), à juger car il peut aussi traiter la réponse à une connexion sortante
+    patterns:
+      - pattern: $SOCKET.on("$EVENT", ...)
+      - metavariable-regex:
+          metavariable: $SOCKET
+          regex: ^(socket|io|ws|wss)$
+      - metavariable-regex:
+          metavariable: $EVENT
+          regex: ^(?!error$|close$|end$|drain$|timeout$|open$|listening$|connect$|data$).+
+    metadata:
+      autocra-category: entry_point
+      autocra-requirements: [CRA-I-1-2d, CRA-I-1-2j]
+
   - id: js-server-listen
     languages: [javascript, typescript]
     severity: INFO

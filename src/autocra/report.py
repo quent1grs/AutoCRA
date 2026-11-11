@@ -130,3 +130,32 @@ def render_markdown(analysis: Analysis) -> str:
 
 def write_markdown(analysis: Analysis, path: Path) -> None:
     path.write_text(render_markdown(analysis), encoding="utf-8")
+
+
+def render_questionnaire(analysis: Analysis) -> str:
+    """Questions que seul l'éditeur peut trancher, avec ce que l'outil a déjà trouvé."""
+    lines = [
+        "# Questionnaire pour l'éditeur",
+        "",
+        f"Version du code analysée : `{analysis.commit or 'inconnue'}`.",
+        "",
+        "Le code ne répond pas à ces questions. Chaque réponse devient une preuve "
+        "déclarative dans le dossier : indiquez qui répond, à quelle date, et le "
+        "document qui l'appuie s'il existe.",
+        "",
+    ]
+    for e in analysis.evidences:
+        if not e.questions:
+            continue
+        lines += [f"## {e.reference} : {e.title}", ""]
+        lines.append(f"Ce que l'outil a trouvé : {len(e.pour)} élément(s) favorable(s), "
+                     f"{len(e.contre)} défavorable(s), {len(e.neutres)} à juger.")
+        lines.append("")
+        for question in e.questions:
+            lines += [f"- [ ] {question}", "  - Réponse :", "  - Document à l'appui :"]
+        lines.append("")
+    return "\n".join(lines)
+
+
+def write_questionnaire(analysis: Analysis, path: Path) -> None:
+    path.write_text(render_questionnaire(analysis), encoding="utf-8")

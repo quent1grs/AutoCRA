@@ -19,3 +19,8 @@ app.post("/api/login", async (req, res) => {
 });
 
 app.listen(process.env.PORT || 3000);
+
+io.on("connection", (socket) => {
+  socket.on("editItem", (item, callback) => callback({ ok: true }));
+  socket.on("error", () => {});
+});

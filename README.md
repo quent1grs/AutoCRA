@@ -36,6 +36,7 @@ autocra requirements
 Le dossier de sortie contient :
 
 - `rapport.md` : rapport lisible, une fiche par exigence ;
+- `questionnaire.md` : les questions que seul l'éditeur peut trancher ;
 - `preuves.json` : toutes les preuves, pour un traitement automatique ;
 - `sbom.cdx.json` : inventaire des composants au format CycloneDX.
 
@@ -51,7 +52,7 @@ exclus. `--include-tests` les réintègre.
 | Syft | Inventaire des composants | 2(a), partie II point 1 |
 
 Langages couverts : Python (Django, DRF, Flask, FastAPI) et JavaScript ou
-TypeScript (Express, Node.js).
+TypeScript (Express, Node.js, Socket.IO).
 
 ## Limites connues
 
