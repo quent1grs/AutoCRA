@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import __version__, engine, report, requirements
+from . import __version__, decisions, engine, report, requirements
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -33,11 +33,32 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("requirements", help="Lister les exigences du référentiel")
 
+    valider = sub.add_parser("valider", help="Enregistrer la décision d'une personne sur une fiche")
+    valider.add_argument("reference", help="Exigence concernée, par exemple CRA-I-1-2d")
+    valider.add_argument("--etat", required=True, choices=[s.value for s in decisions.HUMAN_STATUSES],
+                         help="État retenu par la personne")
+    valider.add_argument("--par", required=True, help="Nom de la personne qui décide")
+    valider.add_argument("--note", default="", help="Justification ou réserve")
+    valider.add_argument("--code", type=Path, required=True, help="Dossier du code analysé (pour noter sa version)")
+    valider.add_argument("-o", "--out", type=Path, default=Path("autocra-out"), help="Dossier de sortie de l'analyse")
+
     args = parser.parse_args(argv)
 
     if args.command == "requirements":
         for req in requirements.REQUIREMENTS:
             print(f"{req.id:12} {req.title}")
+        return 0
+
+    if args.command == "valider":
+        try:
+            decision = decisions.record(args.out, args.reference, args.etat, args.par,
+                                        engine.git_commit(args.code.resolve()), args.note)
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+        print(f"Décision enregistrée : {decision.reference} = {decision.status}, par {decision.author}, "
+              f"version {(decision.commit or 'inconnue')[:12]}.")
+        print("Relancez « autocra scan » pour mettre le rapport à jour.")
         return 0
 
     if not args.target.is_dir():
