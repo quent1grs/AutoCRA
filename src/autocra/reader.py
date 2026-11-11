@@ -171,7 +171,15 @@ def build_excerpts(root: Path, findings: list[Finding]) -> tuple[list[Excerpt], 
 
     excerpts = []
     for file, file_windows in windows.items():
+        # Deux fenêtres agrandies séparément peuvent finir par se recouvrir : on les réunit.
+        joined: list[list] = []
         for start, end, reasons, _ in sorted(file_windows):
+            if joined and start <= joined[-1][1] + 1:
+                joined[-1][1] = max(joined[-1][1], end)
+                joined[-1][2] += reasons
+            else:
+                joined.append([start, end, list(reasons)])
+        for start, end, reasons in joined:
             text = "\n".join(f"{n:>5}  {line}" for n, line in enumerate(cache[file][start - 1:end], start=start))
             excerpts.append(Excerpt(file, start, end, text, reasons))
     return excerpts, len(located) - shown

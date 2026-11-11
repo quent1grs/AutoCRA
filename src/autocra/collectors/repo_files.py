@@ -92,7 +92,9 @@ def run(target: Path, commit: str | None = None) -> list[Finding]:
                  "Signature ou attestation des livrables", ["CRA-II-7", "CRA-I-1-2f"]),
             ]
             # La publication n'est ni pour ni contre : elle montre où lire la chaîne de distribution.
-            line = _first_line(text, r"docker/build-push-action|docker (buildx )?push|ghcr\.io|pypa/gh-action-pypi-publish|npm publish|softprops/action-gh-release")
+            line = (_first_line(text, r"docker/build-push-action|docker (buildx )?(push|imagetools create)|"
+                                      r"pypa/gh-action-pypi-publish|npm publish|softprops/action-gh-release")
+                    or _first_line(text, r"ghcr\.io|docker\.io|quay\.io"))
             if line:
                 add("ci-publish", "Publication des livrables par la chaîne de livraison", path, line,
                     ["CRA-II-7", "CRA-II-8"], Polarity.NEUTRE)
@@ -107,7 +109,7 @@ def run(target: Path, commit: str | None = None) -> list[Finding]:
             add("data-management-command", f"Commande d'administration {kind} des données", path,
                 _first_line(_read(path), r"^class Command\b") or 1,
                 ["CRA-I-1-2m"], Polarity.NEUTRE, "data")
-        elif re.fullmatch(r"(docker-)?compose[\w.-]*\.ya?ml", name):
+        elif re.fullmatch(r"(docker-)?compose[\w.-]*\.ya?ml", name) and not re.search(r"\b(ci|test|e2e|dev)\b", name):
             lines = _read(path).splitlines()
             in_ports = False
             hardened = False
@@ -119,7 +121,7 @@ def run(target: Path, commit: str | None = None) -> list[Finding]:
                     in_ports = True
                     continue
                 if in_ports and stripped.startswith("-"):
-                    add("compose-port", f"Port publié par la configuration livrée : {stripped.lstrip('- ').strip(chr(34))}",
+                    add("compose-port", f"Port publié par la configuration livrée : {stripped.lstrip('- ').split('#')[0].strip().strip(chr(34))}",
                         path, number, ["CRA-I-1-2j"], Polarity.NEUTRE, "entry_point")
                     continue
                 in_ports = False
