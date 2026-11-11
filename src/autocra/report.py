@@ -41,6 +41,7 @@ def write_json(analysis: Analysis, path: Path) -> None:
         },
         "erreurs": analysis.errors,
         "exigences": [to_dict(e) for e in analysis.evidences],
+        "lecture_ia": {ref: to_dict(a) for ref, a in analysis.assessments.items()},
     }
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -65,7 +66,31 @@ def _group(title: str, items: list[Finding]) -> list[str]:
     return lines
 
 
-def _evidence_section(e: Evidence) -> list[str]:
+def _assessment_lines(a) -> list[str]:
+    if a.error:
+        return [f"**Lecture par l'IA :** échec ({a.error}).", ""]
+    lines = [
+        f"**Lecture par l'IA ({a.model}), à valider par une personne**",
+        "",
+        f"- **État proposé :** {a.status.value} (confiance {a.confidence})",
+        f"- **Synthèse :** {a.summary}",
+        f"- **Couverture :** {a.shown} élément(s) montré(s) au modèle, {a.omitted} non montré(s).",
+    ]
+    if a.unverified:
+        lines.append(f"- **Attention :** {a.unverified} citation(s) hors des extraits fournis, écartée(s) des preuves.")
+    lines.append("")
+    for title, items in (("Pour", a.pour), ("Contre", a.contre)):
+        if items:
+            lines += [f"*{title}*", ""]
+            lines += [f"- `{c.file}:{c.line}` {c.explanation}" + ("" if c.verified else " **(non vérifiée)**")
+                      for c in items]
+            lines.append("")
+    if a.gaps:
+        lines += ["*Ce qu'il reste à lire ou à demander*", ""] + [f"- {g}" for g in a.gaps] + [""]
+    return lines
+
+
+def _evidence_section(e: Evidence, assessment=None) -> list[str]:
     req = BY_ID[e.reference]
     lines = [
         f"### {e.reference} : {e.title}",
@@ -77,6 +102,8 @@ def _evidence_section(e: Evidence) -> list[str]:
         f"- **État proposé :** {e.status.value}. {e.rationale}",
         "",
     ]
+    if assessment is not None:
+        lines += _assessment_lines(assessment)
     lines += _group("Éléments favorables", e.pour)
     lines += _group("Éléments défavorables", e.contre)
     lines += _group("Éléments d'inventaire à juger", e.neutres)
@@ -115,16 +142,21 @@ def render_markdown(analysis: Analysis) -> str:
     for e in analysis.evidences:
         lines.append(f"| {e.reference} | {e.title} | {len(e.pour)} | {len(e.contre)} | {len(e.neutres)} |")
     lines.append("")
+    if analysis.assessments:
+        tokens_in = sum(a.input_tokens for a in analysis.assessments.values())
+        tokens_out = sum(a.output_tokens for a in analysis.assessments.values())
+        lines += [f"Lecture par l'IA : {len(analysis.assessments)} exigence(s), "
+                  f"{tokens_in} jetons lus, {tokens_out} jetons écrits.", ""]
     if analysis.errors:
         lines += ["## Erreurs d'analyse", ""] + [f"- {err[:300]}" for err in analysis.errors[:20]] + [""]
     lines += ["## Partie I : exigences sur le produit", ""]
     for e in analysis.evidences:
         if BY_ID[e.reference].part == "I":
-            lines += _evidence_section(e)
+            lines += _evidence_section(e, analysis.assessments.get(e.reference))
     lines += ["## Partie II : gestion des failles", ""]
     for e in analysis.evidences:
         if BY_ID[e.reference].part == "II":
-            lines += _evidence_section(e)
+            lines += _evidence_section(e, analysis.assessments.get(e.reference))
     return "\n".join(lines)
 
 

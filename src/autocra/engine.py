@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
+from . import reader as reader_module
 from . import requirements
 from .collectors import repo_files, sbom, semgrep_inventory
 from .model import Evidence, Finding, Polarity, Status
@@ -21,6 +22,7 @@ class Analysis:
     findings: list[Finding]
     sbom: sbom.SbomResult
     errors: list[str] = field(default_factory=list)
+    assessments: dict[str, reader_module.Assessment] = field(default_factory=dict)
 
     def counts(self) -> dict[str, int]:
         out: dict[str, int] = {}
@@ -53,7 +55,9 @@ def propose_status(evidence: Evidence) -> tuple[Status, str]:
 
 
 def analyse(target: Path, out_dir: Path, syft: str | None = None, with_sbom: bool = True,
-            excludes: tuple[str, ...] | None = None) -> Analysis:
+            excludes: tuple[str, ...] | None = None,
+            reader: reader_module.Reader | None = None,
+            only: tuple[str, ...] | None = None) -> Analysis:
     target = target.resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
     commit = git_commit(target)
@@ -77,7 +81,15 @@ def analyse(target: Path, out_dir: Path, syft: str | None = None, with_sbom: boo
         evidence.status, evidence.rationale = propose_status(evidence)
         evidences.append(evidence)
 
+    assessments: dict[str, reader_module.Assessment] = {}
+    if reader is not None:
+        for req, evidence in zip(requirements.REQUIREMENTS, evidences):
+            if only and req.id not in only:
+                continue
+            assessments[req.id] = reader_module.assess(reader, req, evidence, target)
+
     return Analysis(
+        assessments=assessments,
         target=str(target), commit=commit,
         generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         evidences=evidences, findings=findings, sbom=sbom_result, errors=errors,
