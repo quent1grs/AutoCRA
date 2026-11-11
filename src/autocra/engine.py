@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
+from . import decisions as decisions_module
 from . import reader as reader_module
 from . import requirements
 from .collectors import repo_files, sbom, semgrep_inventory
@@ -23,6 +24,7 @@ class Analysis:
     sbom: sbom.SbomResult
     errors: list[str] = field(default_factory=list)
     assessments: dict[str, reader_module.Assessment] = field(default_factory=dict)
+    decisions: dict = field(default_factory=dict)  # dernière décision humaine par exigence
 
     def counts(self) -> dict[str, int]:
         out: dict[str, int] = {}
@@ -89,7 +91,7 @@ def analyse(target: Path, out_dir: Path, syft: str | None = None, with_sbom: boo
             assessments[req.id] = reader_module.assess(reader, req, evidence, target)
 
     return Analysis(
-        assessments=assessments,
+        assessments=assessments, decisions=decisions_module.latest(out_dir),
         target=str(target), commit=commit,
         generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         evidences=evidences, findings=findings, sbom=sbom_result, errors=errors,

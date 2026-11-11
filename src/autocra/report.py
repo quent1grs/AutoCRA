@@ -43,6 +43,7 @@ def write_json(analysis: Analysis, path: Path) -> None:
         "erreurs": analysis.errors,
         "exigences": [to_dict(e) for e in analysis.evidences],
         "lecture_ia": {ref: to_dict(a) for ref, a in analysis.assessments.items()},
+        "decisions": {ref: vars(d) for ref, d in analysis.decisions.items()},
     }
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -91,7 +92,19 @@ def _assessment_lines(a) -> list[str]:
     return lines
 
 
-def _evidence_section(e: Evidence, assessment=None) -> list[str]:
+def _decision_line(decision, commit: str | None) -> str:
+    if decision is None:
+        return "- **Décision humaine :** aucune. Cette fiche n'est pas validée."
+    line = f"- **Décision humaine :** {decision.status}, par {decision.author}, le {decision.date[:10]}"
+    if decision.note:
+        line += f". {decision.note}"
+    if decision.commit != commit:
+        line += (f" **Attention : décision prise sur la version `{(decision.commit or 'inconnue')[:12]}`, "
+                 "le code a changé depuis. À revoir.**")
+    return line
+
+
+def _evidence_section(e: Evidence, assessment=None, decision=None, commit: str | None = None) -> list[str]:
     req = BY_ID[e.reference]
     lines = [
         f"### {e.reference} : {e.title}",
@@ -101,6 +114,7 @@ def _evidence_section(e: Evidence, assessment=None) -> list[str]:
         f"- **Préparation :** {e.preparation}",
         f"- **Activités :** {' '.join(e.activities)}",
         f"- **État proposé :** {e.status.value}. {e.rationale}",
+        _decision_line(decision, commit),
         "",
     ]
     if assessment is not None:
@@ -139,10 +153,16 @@ def render_markdown(analysis: Analysis) -> str:
         lines.append(f"Inventaire des composants : {analysis.sbom.components} composants (fichier `sbom.cdx.json`).")
     else:
         lines.append(f"Inventaire des composants : non produit. {analysis.sbom.error}")
-    lines += ["", "| Exigence | Intitulé | Pour | Contre | À juger |", "|---|---|---|---|---|"]
+    lines += ["", "| Exigence | Intitulé | Pour | Contre | À juger | Décision humaine |", "|---|---|---|---|---|---|"]
     for e in analysis.evidences:
-        lines.append(f"| {e.reference} | {e.title} | {len(e.pour)} | {len(e.contre)} | {len(e.neutres)} |")
+        decision = analysis.decisions.get(e.reference)
+        cell = "non validée" if decision is None else (
+            f"{decision.status} ({decision.author})" + ("" if decision.commit == analysis.commit else ", à revoir"))
+        lines.append(f"| {e.reference} | {e.title} | {len(e.pour)} | {len(e.contre)} | {len(e.neutres)} | {cell} |")
     lines.append("")
+    validated = sum(1 for e in analysis.evidences
+                    if e.reference in analysis.decisions and analysis.decisions[e.reference].commit == analysis.commit)
+    lines += [f"Fiches validées par une personne sur cette version du code : {validated} sur {len(analysis.evidences)}.", ""]
     if analysis.assessments:
         tokens_in = sum(a.input_tokens for a in analysis.assessments.values())
         tokens_out = sum(a.output_tokens for a in analysis.assessments.values())
@@ -153,11 +173,13 @@ def render_markdown(analysis: Analysis) -> str:
     lines += ["## Partie I : exigences sur le produit", ""]
     for e in analysis.evidences:
         if BY_ID[e.reference].part == "I":
-            lines += _evidence_section(e, analysis.assessments.get(e.reference))
+            lines += _evidence_section(e, analysis.assessments.get(e.reference),
+                                       analysis.decisions.get(e.reference), analysis.commit)
     lines += ["## Partie II : gestion des failles", ""]
     for e in analysis.evidences:
         if BY_ID[e.reference].part == "II":
-            lines += _evidence_section(e, analysis.assessments.get(e.reference))
+            lines += _evidence_section(e, analysis.assessments.get(e.reference),
+                                       analysis.decisions.get(e.reference), analysis.commit)
     return "\n".join(lines)
 
 
