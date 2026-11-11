@@ -95,3 +95,17 @@ def test_lecture_hors_ligne(tmp_path):
     (tmp_path / "reponses" / "CRA-I-1-2b.json").write_text(json.dumps(ANSWER), encoding="utf-8")
     second = engine.analyse(FIXTURES, tmp_path, with_sbom=False, excludes=(), reader=offline, only=("CRA-I-1-2b",))
     assert second.assessments["CRA-I-1-2b"].status is Status.ECART
+
+
+def test_elements_sans_emplacement_ne_sont_pas_omis(tmp_path):
+    from autocra.model import Finding, Location, Polarity
+    from autocra.reader import build_excerpts
+    (tmp_path / "a.py").write_text("x = 1\n")
+    findings = [
+        Finding(category="sbom", rule_id="sbom", message="Inventaire produit", location=Location("", 0),
+                requirements=["CRA-II-1"], polarity=Polarity.POUR),
+        Finding(category="setting", rule_id="py-env-variable", message="Réglage", location=Location("a.py", 1),
+                requirements=["CRA-II-1"], polarity=Polarity.NEUTRE),
+    ]
+    excerpts, omitted = build_excerpts(tmp_path, findings)
+    assert len(excerpts) == 1 and omitted == 0
