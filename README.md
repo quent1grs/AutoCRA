@@ -40,6 +40,30 @@ Le dossier de sortie contient :
 - `preuves.json` : toutes les preuves, pour un traitement automatique ;
 - `sbom.cdx.json` : inventaire des composants au format CycloneDX.
 
+### Lecture par l'IA
+
+```bash
+pip install -e ".[ia]"
+export ANTHROPIC_API_KEY=...            # compte API, distinct d'un abonnement Claude
+autocra scan chemin/du/depot -o sortie --ia --only CRA-I-1-2b,CRA-I-1-2e
+```
+
+Pour chaque exigence, le modèle reçoit des extraits numérotés autour des
+éléments relevés par les outils et rend un état proposé, une synthèse, des
+éléments pour et contre avec fichier et ligne, et ce qu'il reste à lire.
+
+- Toute citation hors des extraits fournis est marquée « non vérifiée » et
+  écartée des preuves.
+- Les éléments non montrés au modèle, faute de place, sont comptés dans la
+  fiche (« couverture »).
+- `--model` choisit le modèle (défaut `claude-opus-5-5`), `--only` limite les
+  exigences lues, donc le coût.
+
+`--ia-hors-ligne` écrit les messages dans `sortie/prompts/` et lit les
+réponses dans `sortie/reponses/<exigence>.json`. Ce mode sert à faire lire
+les extraits par un autre modèle, y compris hébergé chez le client, sans
+qu'aucun code ne sorte de la machine.
+
 Par défaut, les dossiers de tests, de documentation et de migrations sont
 exclus. `--include-tests` les réintègre.
 
@@ -59,7 +83,10 @@ TypeScript (Express, Node.js, Socket.IO).
 - Les règles ne voient que les formes simples. Un réglage calculé par une
   fonction (par exemple `DEBUG = get_bool("DEBUG")`) n'est pas jugé.
 - Aucune recherche de failles connues dans les composants pour l'instant.
-- Pas encore de lecture par l'IA : les états proposés restent « à examiner ».
+- La lecture par l'IA ne voit que les extraits autour des éléments relevés. Ce que
+  les règles n'ont pas relevé ne lui est pas montré.
+- La lecture par l'IA n'a pas encore été essayée avec une clé réelle : seul le
+  mode hors ligne a tourné de bout en bout.
 - Les intitulés des exigences résument le règlement et ne le citent pas.
 
 ## Tests
