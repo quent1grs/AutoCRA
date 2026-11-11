@@ -1,0 +1,130 @@
+# Règles d'inventaire pour JavaScript et TypeScript (Node.js).
+rules:
+  - id: js-express-route
+    languages: [javascript, typescript]
+    severity: INFO
+    message: Route HTTP déclarée (Express ou équivalent)
+    patterns:
+      - pattern: $APP.$METHOD("$PATH", ...)
+      - metavariable-regex:
+          metavariable: $METHOD
+          regex: ^(get|post|put|patch|delete|all|use|route)$
+      - metavariable-regex:
+          metavariable: $PATH
+          regex: ^/.*
+    metadata:
+      autocra-category: entry_point
+      autocra-requirements: [CRA-I-1-2d, CRA-I-1-2j]
+
+  - id: js-server-listen
+    languages: [javascript, typescript]
+    severity: INFO
+    message: Écoute réseau
+    pattern-either:
+      - pattern: $SERVER.listen(...)
+      - pattern: http.createServer(...)
+      - pattern: https.createServer(...)
+      - pattern: net.createServer(...)
+      - pattern: new WebSocketServer(...)
+      - pattern: new $WS.Server(...)
+    metadata:
+      autocra-category: entry_point
+      autocra-requirements: [CRA-I-1-2d, CRA-I-1-2j]
+
+  - id: js-env-variable
+    languages: [javascript, typescript]
+    severity: INFO
+    message: Lecture d'une variable d'environnement
+    pattern: process.env.$VAR
+    metadata:
+      autocra-category: setting
+      autocra-requirements: [CRA-I-1-2b, CRA-I-1-2j]
+
+  - id: js-outbound-http
+    languages: [javascript, typescript]
+    severity: INFO
+    message: Appel HTTP sortant
+    pattern-either:
+      - pattern: fetch(...)
+      - pattern: axios(...)
+      - pattern: axios.$M(...)
+      - pattern: http.request(...)
+      - pattern: https.request(...)
+      - pattern: http.get(...)
+      - pattern: https.get(...)
+    metadata:
+      autocra-category: outbound_call
+      autocra-requirements: [CRA-I-1-2g, CRA-I-1-2i]
+
+  - id: js-weak-hash
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: Algorithme de hachage faible (MD5 ou SHA-1)
+    pattern-either:
+      - pattern: crypto.createHash("md5")
+      - pattern: crypto.createHash("sha1")
+    metadata:
+      autocra-category: crypto
+      autocra-polarity: contre
+      autocra-requirements: [CRA-I-1-2e, CRA-I-1-2f]
+
+  - id: js-tls-verify-disabled
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: Vérification du certificat TLS désactivée
+    pattern-either:
+      - pattern: |
+          {..., rejectUnauthorized: false, ...}
+      - pattern: process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
+    metadata:
+      autocra-category: crypto
+      autocra-polarity: contre
+      autocra-requirements: [CRA-I-1-2e]
+
+  - id: js-strong-crypto
+    languages: [javascript, typescript]
+    severity: INFO
+    message: Primitive cryptographique robuste utilisée
+    pattern-either:
+      - pattern: crypto.randomBytes(...)
+      - pattern: crypto.createHash("sha256")
+      - pattern: crypto.scrypt(...)
+      - pattern: crypto.createCipheriv("aes-256-gcm", ...)
+      - pattern: bcrypt.hash(...)
+    metadata:
+      autocra-category: crypto
+      autocra-polarity: pour
+      autocra-requirements: [CRA-I-1-2e, CRA-I-1-2f]
+
+  - id: js-hardcoded-secret
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: Mot de passe ou secret écrit en dur
+    patterns:
+      - pattern-either:
+          - pattern: const $NAME = "$VALUE"
+          - pattern: let $NAME = "$VALUE"
+          - pattern: |
+              {..., $NAME: "$VALUE", ...}
+      - metavariable-regex:
+          metavariable: $NAME
+          regex: (?i).*(password|passwd|secret|apikey|api_key|token)$
+      - metavariable-regex:
+          metavariable: $VALUE
+          regex: ^.{6,}$
+    metadata:
+      autocra-category: secret
+      autocra-polarity: contre
+      autocra-requirements: [CRA-I-1-2b, CRA-I-1-2e]
+
+  - id: js-rate-limit
+    languages: [javascript, typescript]
+    severity: INFO
+    message: Limitation de débit configurée
+    pattern-either:
+      - pattern: rateLimit(...)
+      - pattern: helmet(...)
+    metadata:
+      autocra-category: setting
+      autocra-polarity: pour
+      autocra-requirements: [CRA-I-1-2d, CRA-I-1-2h]

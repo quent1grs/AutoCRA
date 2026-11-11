@@ -1,0 +1,132 @@
+"""Exports : JSON complet et rapport Markdown lisible."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from .engine import Analysis
+from .model import Evidence, Finding, to_dict
+from .requirements import BY_ID
+
+MAX_LISTED = 15
+
+CATEGORY_LABELS = {
+    "entry_point": "Points d'entrée",
+    "outbound_call": "Appels sortants",
+    "setting": "Réglages",
+    "secret": "Secrets en dur",
+    "crypto": "Cryptographie",
+    "logging": "Journalisation",
+    "data": "Suppression et export",
+    "update": "Mises à jour",
+    "process": "Preuves de processus",
+    "hardening": "Durcissement",
+    "sbom": "Inventaire",
+}
+
+
+def write_json(analysis: Analysis, path: Path) -> None:
+    payload = {
+        "outil": "autocra",
+        "cible": analysis.target,
+        "commit": analysis.commit,
+        "date": analysis.generated_at,
+        "avertissement": "Preuves proposées par un outil. Aucun verdict de conformité.",
+        "compte_par_categorie": analysis.counts(),
+        "inventaire": {
+            "disponible": analysis.sbom.available,
+            "composants": analysis.sbom.components,
+            "erreur": analysis.sbom.error,
+        },
+        "erreurs": analysis.errors,
+        "exigences": [to_dict(e) for e in analysis.evidences],
+    }
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _finding_line(f: Finding) -> str:
+    snippet = f.snippet.splitlines()[0].strip() if f.snippet else ""
+    if len(snippet) > 110:
+        snippet = snippet[:107] + "..."
+    code = f" : `{snippet}`" if snippet else ""
+    note = f" ({f.extra['note']})" if f.extra.get("note") else ""
+    return f"- `{f.location.label()}` {f.message}{code}{note}"
+
+
+def _group(title: str, items: list[Finding]) -> list[str]:
+    if not items:
+        return []
+    lines = [f"**{title} ({len(items)})**", ""]
+    lines += [_finding_line(f) for f in items[:MAX_LISTED]]
+    if len(items) > MAX_LISTED:
+        lines.append(f"- et {len(items) - MAX_LISTED} autres, dans le fichier JSON.")
+    lines.append("")
+    return lines
+
+
+def _evidence_section(e: Evidence) -> list[str]:
+    req = BY_ID[e.reference]
+    lines = [
+        f"### {e.reference} : {e.title}",
+        "",
+        f"- **Référence :** {req.ref}",
+        f"- **Objectif :** {e.objective}",
+        f"- **Préparation :** {e.preparation}",
+        f"- **Activités :** {' '.join(e.activities)}",
+        f"- **État proposé :** {e.status.value}. {e.rationale}",
+        "",
+    ]
+    lines += _group("Éléments favorables", e.pour)
+    lines += _group("Éléments défavorables", e.contre)
+    lines += _group("Éléments d'inventaire à juger", e.neutres)
+    if e.questions:
+        lines += ["**Questions pour l'éditeur**", ""] + [f"- {q}" for q in e.questions] + [""]
+    return lines
+
+
+def render_markdown(analysis: Analysis) -> str:
+    counts = analysis.counts()
+    lines = [
+        "# Rapport AutoCRA",
+        "",
+        f"- **Cible :** `{analysis.target}`",
+        f"- **Version du code :** `{analysis.commit or 'inconnue'}`",
+        f"- **Date :** {analysis.generated_at}",
+        "",
+        "> Ce rapport réunit des preuves localisées pour chaque exigence de l'annexe I du "
+        "règlement (UE) 2024/2847. Il ne déclare pas la conformité : chaque état est une "
+        "proposition à valider par une personne. Une absence de résultat ne prouve pas une absence dans le produit.",
+        "",
+        "## Vue d'ensemble",
+        "",
+        "| Catégorie | Éléments trouvés |",
+        "|---|---|",
+    ]
+    for key, label in CATEGORY_LABELS.items():
+        if key in counts:
+            lines.append(f"| {label} | {counts[key]} |")
+    lines.append("")
+    if analysis.sbom.available:
+        lines.append(f"Inventaire des composants : {analysis.sbom.components} composants (fichier `sbom.cdx.json`).")
+    else:
+        lines.append(f"Inventaire des composants : non produit. {analysis.sbom.error}")
+    lines += ["", "| Exigence | Intitulé | Pour | Contre | À juger |", "|---|---|---|---|---|"]
+    for e in analysis.evidences:
+        lines.append(f"| {e.reference} | {e.title} | {len(e.pour)} | {len(e.contre)} | {len(e.neutres)} |")
+    lines.append("")
+    if analysis.errors:
+        lines += ["## Erreurs d'analyse", ""] + [f"- {err[:300]}" for err in analysis.errors[:20]] + [""]
+    lines += ["## Partie I : exigences sur le produit", ""]
+    for e in analysis.evidences:
+        if BY_ID[e.reference].part == "I":
+            lines += _evidence_section(e)
+    lines += ["## Partie II : gestion des failles", ""]
+    for e in analysis.evidences:
+        if BY_ID[e.reference].part == "II":
+            lines += _evidence_section(e)
+    return "\n".join(lines)
+
+
+def write_markdown(analysis: Analysis, path: Path) -> None:
+    path.write_text(render_markdown(analysis), encoding="utf-8")

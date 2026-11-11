@@ -1,0 +1,8 @@
+__pycache__/
+*.egg-info/
+.venv/
+venv/
+autocra-out/
+.pytest_cache/
+dist/
+build/

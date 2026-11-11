@@ -1,0 +1,380 @@
+# Règles d'inventaire pour Python. Elles ne cherchent pas des failles :
+# elles listent ce qui sert de preuve (points d'entrée, appels sortants,
+# réglages, cryptographie). Les métadonnées « autocra » relient chaque
+# résultat aux exigences du CRA.
+rules:
+  # ---------------------------------------------------------------- points d'entrée
+  - id: py-django-url
+    languages: [python]
+    severity: INFO
+    message: Route Django déclarée
+    pattern-either:
+      - pattern: django.urls.path(...)
+      - pattern: django.urls.re_path(...)
+      - pattern: django.conf.urls.url(...)
+    metadata:
+      autocra-category: entry_point
+      autocra-requirements: [CRA-I-1-2d, CRA-I-1-2j]
+
+  - id: py-drf-router
+    languages: [python]
+    severity: INFO
+    message: Ressource d'API enregistrée sur un routeur Django REST Framework
+    pattern: $ROUTER.register($PREFIX, $VIEWSET, ...)
+    metadata:
+      autocra-category: entry_point
+      autocra-requirements: [CRA-I-1-2d, CRA-I-1-2j]
+
+  - id: py-flask-fastapi-route
+    languages: [python]
+    severity: INFO
+    message: Route HTTP déclarée par décorateur
+    pattern-either:
+      - pattern: |
+          @$APP.route(...)
+          def $F(...): ...
+      - patterns:
+          - pattern-either:
+              - pattern: |
+                  @$APP.$METHOD("$PATH", ...)
+                  def $F(...): ...
+              - pattern: |
+                  @$APP.$METHOD("$PATH", ...)
+                  async def $F(...): ...
+          - metavariable-regex:
+              metavariable: $METHOD
+              regex: ^(get|post|put|patch|delete|websocket|api_route)$
+          - metavariable-regex:
+              metavariable: $PATH
+              regex: ^/.*
+    metadata:
+      autocra-category: entry_point
+      autocra-requirements: [CRA-I-1-2d, CRA-I-1-2j]
+
+  - id: py-websocket-consumer
+    languages: [python]
+    severity: INFO
+    message: Point d'entrée WebSocket (Django Channels)
+    pattern-either:
+      - pattern: |
+          class $C(..., channels.generic.websocket.AsyncWebsocketConsumer, ...): ...
+      - pattern: |
+          class $C(..., channels.generic.websocket.WebsocketConsumer, ...): ...
+      - pattern: |
+          class $C(..., channels.generic.websocket.AsyncJsonWebsocketConsumer, ...): ...
+    metadata:
+      autocra-category: entry_point
+      autocra-requirements: [CRA-I-1-2d, CRA-I-1-2j]
+
+  - id: py-socket-listen
+    languages: [python]
+    severity: INFO
+    message: Écoute réseau directe (socket)
+    pattern-either:
+      - pattern: $S.bind(...)
+      - pattern: $S.listen(...)
+      - pattern: socketserver.TCPServer(...)
+      - pattern: http.server.HTTPServer(...)
+    metadata:
+      autocra-category: entry_point
+      autocra-requirements: [CRA-I-1-2d, CRA-I-1-2j]
+
+  - id: py-cli-argument
+    languages: [python]
+    severity: INFO
+    message: Argument de ligne de commande
+    pattern-either:
+      - pattern: $P.add_argument(...)
+      - pattern: |
+          @click.option(...)
+          def $F(...): ...
+    metadata:
+      autocra-category: entry_point
+      autocra-requirements: [CRA-I-1-2j]
+
+  - id: py-env-variable
+    languages: [python]
+    severity: INFO
+    message: Lecture d'une variable d'environnement
+    pattern-either:
+      - pattern: os.getenv(...)
+      - pattern: os.environ.get(...)
+      - pattern: os.environ[...]
+    metadata:
+      autocra-category: setting
+      autocra-requirements: [CRA-I-1-2b, CRA-I-1-2j]
+
+  # ---------------------------------------------------------------- appels sortants
+  - id: py-outbound-http
+    languages: [python]
+    severity: INFO
+    message: Appel HTTP sortant
+    pattern-either:
+      - patterns:
+          - pattern-either:
+              - pattern: requests.$M(...)
+              - pattern: httpx.$M(...)
+          - metavariable-regex:
+              metavariable: $M
+              regex: ^(get|post|put|patch|delete|head|options|request|stream|Session)$
+      - pattern: httpx.Client(...)
+      - pattern: httpx.AsyncClient(...)
+      - pattern: urllib.request.urlopen(...)
+      - pattern: aiohttp.ClientSession(...)
+    metadata:
+      autocra-category: outbound_call
+      autocra-requirements: [CRA-I-1-2g, CRA-I-1-2i]
+
+  - id: py-outbound-mail
+    languages: [python]
+    severity: INFO
+    message: Connexion sortante de messagerie
+    pattern-either:
+      - pattern: smtplib.SMTP(...)
+      - pattern: smtplib.SMTP_SSL(...)
+      - pattern: imaplib.IMAP4(...)
+      - pattern: imaplib.IMAP4_SSL(...)
+    metadata:
+      autocra-category: outbound_call
+      autocra-requirements: [CRA-I-1-2g, CRA-I-1-2i]
+
+  - id: py-outbound-socket
+    languages: [python]
+    severity: INFO
+    message: Connexion réseau sortante (socket)
+    pattern-either:
+      - pattern: socket.create_connection(...)
+      - pattern: $S.connect(($HOST, $PORT))
+    metadata:
+      autocra-category: outbound_call
+      autocra-requirements: [CRA-I-1-2g, CRA-I-1-2i]
+
+  - id: py-http-timeout-missing
+    languages: [python]
+    severity: WARNING
+    message: Appel HTTP sortant sans délai maximal (timeout)
+    patterns:
+      - pattern-either:
+          - pattern: requests.$M($URL, ...)
+      - metavariable-regex:
+          metavariable: $M
+          regex: ^(get|post|put|patch|delete|head|request)$
+      - pattern-not: requests.$M(..., timeout=$T, ...)
+    metadata:
+      autocra-category: outbound_call
+      autocra-polarity: contre
+      autocra-requirements: [CRA-I-1-2i]
+
+  # ---------------------------------------------------------------- réglages par défaut
+  - id: py-django-debug-true
+    languages: [python]
+    severity: WARNING
+    message: Mode de débogage Django activé en dur
+    pattern: DEBUG = True
+    metadata:
+      autocra-category: setting
+      autocra-polarity: contre
+      autocra-requirements: [CRA-I-1-2b]
+
+  - id: py-django-allowed-hosts-wildcard
+    languages: [python]
+    severity: WARNING
+    message: Tous les noms d'hôte acceptés par défaut
+    pattern-either:
+      - pattern: ALLOWED_HOSTS = ["*"]
+      - pattern: ALLOWED_HOSTS = [..., "*", ...]
+    metadata:
+      autocra-category: setting
+      autocra-polarity: contre
+      autocra-requirements: [CRA-I-1-2b, CRA-I-1-2j]
+
+  - id: py-django-password-validators
+    languages: [python]
+    severity: INFO
+    message: Règles de robustesse des mots de passe configurées
+    pattern: AUTH_PASSWORD_VALIDATORS = [...]
+    metadata:
+      autocra-category: setting
+      autocra-polarity: pour
+      autocra-requirements: [CRA-I-1-2b, CRA-I-1-2d]
+
+  - id: py-django-secure-cookie
+    languages: [python]
+    severity: INFO
+    message: Réglage de sécurité des cookies ou du transport
+    pattern-either:
+      - pattern: SESSION_COOKIE_SECURE = $V
+      - pattern: CSRF_COOKIE_SECURE = $V
+      - pattern: SECURE_SSL_REDIRECT = $V
+      - pattern: SECURE_HSTS_SECONDS = $V
+    metadata:
+      autocra-category: setting
+      autocra-requirements: [CRA-I-1-2b, CRA-I-1-2e]
+
+  - id: py-rate-limit
+    languages: [python]
+    severity: INFO
+    message: Limitation de débit configurée
+    pattern-either:
+      - pattern: |
+          REST_FRAMEWORK = {..., "DEFAULT_THROTTLE_RATES": $R, ...}
+      - pattern: |
+          @ratelimit(...)
+          def $F(...): ...
+      - pattern: AXES_FAILURE_LIMIT = $V
+    metadata:
+      autocra-category: setting
+      autocra-polarity: pour
+      autocra-requirements: [CRA-I-1-2d, CRA-I-1-2h]
+
+  - id: py-hardcoded-password
+    languages: [python]
+    severity: WARNING
+    message: Mot de passe ou secret écrit en dur
+    patterns:
+      - pattern-either:
+          - pattern: $NAME = "$VALUE"
+          - pattern: $F(..., password="$VALUE", ...)
+      - metavariable-regex:
+          metavariable: $NAME
+          regex: (?i).*(password|passwd|secret|api_key|apikey|token)$
+      - metavariable-regex:
+          metavariable: $VALUE
+          regex: ^.{6,}$
+    metadata:
+      autocra-category: secret
+      autocra-polarity: contre
+      autocra-requirements: [CRA-I-1-2b, CRA-I-1-2e]
+
+  # ---------------------------------------------------------------- cryptographie
+  - id: py-weak-hash
+    languages: [python]
+    severity: WARNING
+    message: Algorithme de hachage faible (MD5 ou SHA-1)
+    pattern-either:
+      - pattern: hashlib.md5(...)
+      - pattern: hashlib.sha1(...)
+      - pattern: hashlib.new("md5", ...)
+      - pattern: hashlib.new("sha1", ...)
+    metadata:
+      autocra-category: crypto
+      autocra-polarity: contre
+      autocra-requirements: [CRA-I-1-2e, CRA-I-1-2f]
+      autocra-note: À juger selon l'usage ; acceptable pour un identifiant non sécuritaire.
+
+  - id: py-tls-verify-disabled
+    languages: [python]
+    severity: WARNING
+    message: Vérification du certificat TLS désactivée
+    pattern-either:
+      - pattern: requests.$M(..., verify=False, ...)
+      - pattern: httpx.$M(..., verify=False, ...)
+      - pattern: ssl._create_unverified_context(...)
+      - pattern: $CTX.check_hostname = False
+    metadata:
+      autocra-category: crypto
+      autocra-polarity: contre
+      autocra-requirements: [CRA-I-1-2e]
+
+  - id: py-old-tls
+    languages: [python]
+    severity: WARNING
+    message: Protocole TLS obsolète
+    pattern-either:
+      - pattern: ssl.PROTOCOL_TLSv1
+      - pattern: ssl.PROTOCOL_TLSv1_1
+      - pattern: ssl.PROTOCOL_SSLv23
+    metadata:
+      autocra-category: crypto
+      autocra-polarity: contre
+      autocra-requirements: [CRA-I-1-2e]
+
+  - id: py-insecure-random-token
+    languages: [python]
+    severity: INFO
+    message: Générateur aléatoire non cryptographique
+    pattern-either:
+      - pattern: random.random()
+      - pattern: random.randint(...)
+      - pattern: random.choice(...)
+    metadata:
+      autocra-category: crypto
+      autocra-requirements: [CRA-I-1-2e]
+      autocra-note: À juger ; problème seulement s'il sert à un secret.
+
+  - id: py-strong-crypto
+    languages: [python]
+    severity: INFO
+    message: Primitive cryptographique robuste utilisée
+    pattern-either:
+      - pattern: secrets.$F(...)
+      - pattern: cryptography.fernet.Fernet(...)
+      - pattern: cryptography.hazmat.primitives.ciphers.aead.AESGCM(...)
+      - pattern: hashlib.sha256(...)
+      - pattern: hashlib.pbkdf2_hmac(...)
+    metadata:
+      autocra-category: crypto
+      autocra-polarity: pour
+      autocra-requirements: [CRA-I-1-2e, CRA-I-1-2f]
+
+  # ---------------------------------------------------------------- journal, données
+  - id: py-audit-log
+    languages: [python]
+    severity: INFO
+    message: Journal d'audit des modifications
+    pattern-either:
+      - pattern: auditlog.registry.auditlog.register(...)
+      - pattern: |
+          class $C(..., simple_history.models.HistoricalRecords, ...): ...
+      - pattern: $X = simple_history.models.HistoricalRecords(...)
+    metadata:
+      autocra-category: logging
+      autocra-polarity: pour
+      autocra-requirements: [CRA-I-1-2l]
+
+  - id: py-security-logging
+    languages: [python]
+    severity: INFO
+    message: Journalisation liée à l'authentification
+    patterns:
+      - pattern: $LOG.$LEVEL("$MSG", ...)
+      - metavariable-regex:
+          metavariable: $LEVEL
+          regex: ^(debug|info|warning|warn|error|critical|exception)$
+      - metavariable-regex:
+          metavariable: $MSG
+          regex: (?i).*(login|log in|authenticat|password|permission|denied|unauthori|forbidden).*
+    metadata:
+      autocra-category: logging
+      autocra-polarity: pour
+      autocra-requirements: [CRA-I-1-2d, CRA-I-1-2l]
+
+  - id: py-data-export-delete
+    languages: [python]
+    severity: INFO
+    message: Fonction de suppression ou d'export de données
+    patterns:
+      - pattern: |
+          def $F(...): ...
+      - metavariable-regex:
+          metavariable: $F
+          regex: (?i)^.*(export|delete_user|delete_account|purge|anonymi[sz]e|erase).*$
+    metadata:
+      autocra-category: data
+      autocra-polarity: pour
+      autocra-requirements: [CRA-I-1-2m]
+
+  # ---------------------------------------------------------------- mises à jour
+  - id: py-signature-verification
+    languages: [python]
+    severity: INFO
+    message: Vérification de signature
+    pattern-either:
+      - pattern: $KEY.verify($SIG, $DATA, ...)
+      - pattern: gnupg.GPG(...).verify(...)
+      - pattern: hmac.compare_digest(...)
+      - pattern: nacl.signing.VerifyKey(...)
+    metadata:
+      autocra-category: update
+      autocra-polarity: pour
+      autocra-requirements: [CRA-I-1-2c, CRA-I-1-2f, CRA-II-7]
