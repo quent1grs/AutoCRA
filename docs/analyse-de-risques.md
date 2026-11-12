@@ -40,7 +40,7 @@ AutoCRA est un outil en ligne de commande. Il lit le code d'un produit, relève 
 | R6 | Une dépendance compromise (Semgrep, Syft, paquets Python) | Élevée | Peu de dépendances ; inventaire des composants produit par l'outil | Versions figées ; recherche de failles connues ; vérification de l'empreinte de Syft |
 | R7 | Le journal des décisions est modifié après coup | Moyenne | Journal en ajout seul côté outil | Chaînage par empreintes ou signature |
 | R8 | Fuite de la clé d'accès au modèle | Moyenne | Lue dans l'environnement, jamais écrite dans les sorties | Vérifier qu'elle n'apparaît dans aucun message d'erreur |
-| R9 | Une version modifiée de l'outil est distribuée | Élevée | Aucun | Signature des versions ; publication par la chaîne de livraison |
+| R9 | Une version modifiée de l'outil est distribuée | Élevée | Script de version : empreintes SHA-256 du paquet et signature possible par clé Ed25519 | Clé de signature de l'éditeur à créer et à publier ; publication par une chaîne de livraison |
 
 ## Décisions de conception qui en découlent
 

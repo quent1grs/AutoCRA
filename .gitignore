@@ -6,3 +6,4 @@ autocra-out/
 .pytest_cache/
 dist/
 build/
+*.pem
