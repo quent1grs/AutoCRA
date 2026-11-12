@@ -118,3 +118,12 @@ TypeScript (Express, Node.js, Socket.IO).
 ```
 
 Le script lance les tests, puis applique AutoCRA à son propre code. Il est à lancer avant chaque envoi : les tests ne tournent pas encore automatiquement sur GitHub.
+
+## Préparer une version
+
+```
+./scripts/publier.sh                     # paquet et empreintes
+./scripts/publier.sh cle-privee.pem      # paquet et empreintes signées
+```
+
+Le script refuse un dépôt modifié, lance la vérification, construit le paquet dans `dist/`, note la version du code et calcule les empreintes SHA-256. Avec une clé privée Ed25519, il signe le fichier d'empreintes. Le client vérifie avec `sha256sum -c SHA256SUMS`, puis la signature avec `openssl pkeyutl -verify` et la clé publique de l'éditeur. Les commandes exactes sont en tête du script. La clé privée ne doit jamais entrer dans le dépôt.
