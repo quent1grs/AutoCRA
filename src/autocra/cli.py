@@ -27,6 +27,8 @@ def main(argv: list[str] | None = None) -> int:
                       help="Faire lire les extraits par un modèle d'IA (nécessite ANTHROPIC_API_KEY)")
     scan.add_argument("--ia-hors-ligne", action="store_true",
                       help="Écrire les messages dans <sortie>/prompts et lire les réponses dans <sortie>/reponses")
+    scan.add_argument("--contre-lecture", action="store_true",
+                      help="Comparer avec une seconde lecture, lue dans <sortie>/reponses-contre-lecture")
     scan.add_argument("--model", help="Modèle à utiliser pour la lecture (défaut : claude-opus-5-5)")
     scan.add_argument("--only", help="Limiter la lecture par l'IA à ces exigences, séparées par des virgules")
     scan.add_argument("--no-sbom", action="store_true", help="Ne pas produire l'inventaire des composants")
@@ -71,8 +73,13 @@ def main(argv: list[str] | None = None) -> int:
     elif args.ia_hors_ligne:
         from .reader import FileReader
         reader = FileReader(args.out)
+    second_reader = None
+    if args.contre_lecture:
+        from .reader import FileReader
+        second_reader = FileReader(args.out, answers="reponses-contre-lecture", name="contre-lecture hors ligne")
     analysis = engine.analyse(args.target, args.out, syft=args.syft, with_sbom=not args.no_sbom,
                               excludes=() if args.include_tests else None, reader=reader,
+                              second_reader=second_reader,
                               only=tuple(args.only.split(",")) if args.only else None)
     report.write_json(analysis, args.out / "preuves.json")
     report.write_markdown(analysis, args.out / "rapport.md")

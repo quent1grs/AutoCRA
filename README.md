@@ -67,6 +67,18 @@ qu'aucun code ne sorte de la machine.
 Par défaut, les dossiers de tests, de documentation et de migrations sont
 exclus. `--include-tests` les réintègre.
 
+### Faire relire par un second modèle
+
+Une seule lecture laisse passer des éléments. Pour comparer deux lectures, placez les réponses du second modèle dans `sortie/reponses-contre-lecture/<exigence>.json`, au même format, puis :
+
+```
+autocra scan chemin/du/depot -o sortie --ia-hors-ligne --contre-lecture
+```
+
+Le rapport indique pour chaque exigence si les deux lectures s'accordent, les lignes classées en sens contraire et ce que chacune a relevé seule. Une contre-lecture peut ne porter que sur quelques exigences.
+
+Si le code analysé contient un texte qui semble s'adresser à un modèle d'IA, la fiche porte une alerte.
+
 ### Enregistrer la décision d'une personne
 
 L'outil propose, une personne décide. Chaque décision est notée avec son auteur, sa date et la version du code :

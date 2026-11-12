@@ -33,8 +33,8 @@ AutoCRA est un outil en ligne de commande. Il lit le code d'un produit, relève 
 | N° | Risque | Gravité | Traitement en place | Reste à faire |
 |---|---|---|---|---|
 | R1 | Le code du client sort de chez lui lors de la lecture par l'IA | Élevée | La lecture par l'IA est éteinte par défaut ; mode hors ligne ; télémétrie de Semgrep coupée | Modèle hébergé chez le client ; engagement écrit du fournisseur ; avertissement avant le premier envoi |
-| R2 | Le code analysé contient un texte qui manipule le modèle | Élevée | Citations hors extraits écartées ; décision humaine obligatoire | Jeu d'essai d'injection ; double lecture par deux modèles |
-| R3 | L'outil manque un élément et la fiche rassure à tort | Élevée | États jamais conclusifs ; « absence non prouvée » ; compte des éléments non montrés | Mesure du taux d'oubli sur des projets connus |
+| R2 | Le code analysé contient un texte qui manipule le modèle | Élevée | Citations hors extraits écartées ; décision humaine obligatoire ; consigne au modèle de traiter le code comme une donnée ; alerte sur les textes adressés à un modèle ; contre-lecture par un second modèle | Jeu d'essai d'injection joué contre de vrais modèles |
+| R3 | L'outil manque un élément et la fiche rassure à tort | Élevée | États jamais conclusifs ; « absence non prouvée » ; compte des éléments non montrés ; contre-lecture qui montre ce qu'une lecture seule a manqué | Mesure du taux d'oubli sur des projets connus |
 | R4 | Le rapport est lu par un tiers | Moyenne | Écrit seulement dans le dossier choisi par l'utilisateur | Droits de fichier restreints ; option de chiffrement |
 | R5 | Un fichier du dépôt analysé fait exécuter du code à l'outil | Élevée | Les fichiers sont lus, jamais exécutés ; Semgrep limité à nos règles ; taille des fichiers bornée | Revue des appels de programmes ; essai sur un dépôt piégé |
 | R6 | Une dépendance compromise (Semgrep, Syft, paquets Python) | Élevée | Peu de dépendances ; inventaire des composants produit par l'outil | Versions figées ; recherche de failles connues ; vérification de l'empreinte de Syft |
