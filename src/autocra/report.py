@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from .engine import Analysis
+from . import reader as reader_module
 from .model import Evidence, Finding, to_dict
 from .requirements import BY_ID
 
@@ -44,6 +45,7 @@ def write_json(analysis: Analysis, path: Path) -> None:
         "exigences": [to_dict(e) for e in analysis.evidences],
         "lecture_ia": {ref: to_dict(a) for ref, a in analysis.assessments.items()},
         "decisions": {ref: vars(d) for ref, d in analysis.decisions.items()},
+        "contre_lecture": {ref: to_dict(a) for ref, a in analysis.second_assessments.items()},
     }
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -80,6 +82,9 @@ def _assessment_lines(a) -> list[str]:
     ]
     if a.unverified:
         lines.append(f"- **Attention :** {a.unverified} citation(s) hors des extraits fournis, écartée(s) des preuves.")
+    if a.warnings:
+        lines.append("- **Alerte :** le code montré contient un texte qui semble s'adresser à un modèle d'IA "
+                     f"({', '.join(f'`{w}`' for w in a.warnings[:5])}). Lire cette fiche avec prudence.")
     lines.append("")
     for title, items in (("Pour", a.pour), ("Contre", a.contre)):
         if items:
@@ -89,6 +94,34 @@ def _assessment_lines(a) -> list[str]:
             lines.append("")
     if a.gaps:
         lines += ["*Ce qu'il reste à lire ou à demander*", ""] + [f"- {g}" for g in a.gaps] + [""]
+    return lines
+
+
+def _comparison_lines(first, second) -> list[str]:
+    """Bloc de contre-lecture : ce sur quoi les deux lectures divergent."""
+    if second.error:
+        return [f"**Contre-lecture :** non disponible ({second.error}).", ""]
+    if first is None or first.error:
+        return ["**Contre-lecture :** pas de première lecture à comparer.", ""]
+    c = reader_module.compare(first, second)
+    verdict = "les deux lectures s'accordent" if c.agreed else "les deux lectures divergent, à arbitrer"
+    lines = [
+        f"**Contre-lecture ({second.model}) : {verdict}**",
+        "",
+        f"- **État proposé par la contre-lecture :** {second.status.value} (confiance {second.confidence})"
+        + ("" if c.same_status else f", contre {first.status.value} pour la première lecture"),
+    ]
+    if second.unverified:
+        lines.append(f"- **Attention :** {second.unverified} citation(s) de la contre-lecture hors des extraits fournis.")
+    lines.append("")
+    if c.opposed:
+        lines += ["*Lignes classées en sens contraire*", ""]
+        lines += [f"- `{a.file}:{a.line}` première lecture : {a.explanation} Contre-lecture : {b.explanation}"
+                  for a, b in c.opposed] + [""]
+    for title, items in (("Relevé par la première lecture seulement", c.only_first),
+                         ("Relevé par la contre-lecture seulement", c.only_second)):
+        if items:
+            lines += [f"*{title}*", ""] + [f"- `{i.file}:{i.line}` {i.explanation}" for i in items] + [""]
     return lines
 
 
@@ -104,7 +137,8 @@ def _decision_line(decision, commit: str | None) -> str:
     return line
 
 
-def _evidence_section(e: Evidence, assessment=None, decision=None, commit: str | None = None) -> list[str]:
+def _evidence_section(e: Evidence, assessment=None, decision=None, commit: str | None = None,
+                      second=None) -> list[str]:
     req = BY_ID[e.reference]
     lines = [
         f"### {e.reference} : {e.title}",
@@ -119,6 +153,8 @@ def _evidence_section(e: Evidence, assessment=None, decision=None, commit: str |
     ]
     if assessment is not None:
         lines += _assessment_lines(assessment)
+    if second is not None:
+        lines += _comparison_lines(assessment, second)
     lines += _group("Éléments favorables", e.pour)
     lines += _group("Éléments défavorables", e.contre)
     lines += _group("Éléments d'inventaire à juger", e.neutres)
@@ -168,18 +204,26 @@ def render_markdown(analysis: Analysis) -> str:
         tokens_out = sum(a.output_tokens for a in analysis.assessments.values())
         lines += [f"Lecture par l'IA : {len(analysis.assessments)} exigence(s), "
                   f"{tokens_in} jetons lus, {tokens_out} jetons écrits.", ""]
+    if analysis.second_assessments:
+        pairs = [(analysis.assessments.get(ref), b) for ref, b in analysis.second_assessments.items()]
+        done = [(a, b) for a, b in pairs if a is not None and not a.error and not b.error]
+        agreed = sum(reader_module.compare(a, b).agreed for a, b in done)
+        lines += [f"Contre-lecture : {len(done)} exigence(s) lue(s) deux fois, {agreed} en accord, "
+                  f"{len(done) - agreed} à arbitrer.", ""]
     if analysis.errors:
         lines += ["## Erreurs d'analyse", ""] + [f"- {err[:300]}" for err in analysis.errors[:20]] + [""]
     lines += ["## Partie I : exigences sur le produit", ""]
     for e in analysis.evidences:
         if BY_ID[e.reference].part == "I":
             lines += _evidence_section(e, analysis.assessments.get(e.reference),
-                                       analysis.decisions.get(e.reference), analysis.commit)
+                                       analysis.decisions.get(e.reference), analysis.commit,
+                                       analysis.second_assessments.get(e.reference))
     lines += ["## Partie II : gestion des failles", ""]
     for e in analysis.evidences:
         if BY_ID[e.reference].part == "II":
             lines += _evidence_section(e, analysis.assessments.get(e.reference),
-                                       analysis.decisions.get(e.reference), analysis.commit)
+                                       analysis.decisions.get(e.reference), analysis.commit,
+                                       analysis.second_assessments.get(e.reference))
     return "\n".join(lines)
 
 
